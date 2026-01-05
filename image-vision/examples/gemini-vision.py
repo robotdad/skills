@@ -17,9 +17,10 @@ from google import genai
 from google.genai import types
 import sys
 import os
+import time
 
 
-def analyze_image(image_path: str, prompt: str) -> str:
+def analyze_image(image_path: str, prompt: str, max_retries: int = 2) -> str:
     """Analyze an image using Gemini's vision capabilities.
     
     Args:
@@ -56,19 +57,41 @@ def analyze_image(image_path: str, prompt: str) -> str:
     }
     mime_type = media_types.get(ext, "image/jpeg")
     
-    # Call Gemini with vision using proper types
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",  # Latest model (2025)
-            contents=[
-                prompt,
-                types.Part.from_bytes(data=image_data, mime_type=mime_type)
-            ]
-        )
-        return response.text
-    
-    except Exception as e:
-        raise RuntimeError(f"API error: {e}")
+    # Call Gemini with vision using proper types (with retry logic)
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",  # Latest model (2025)
+                contents=[
+                    prompt,
+                    types.Part.from_bytes(data=image_data, mime_type=mime_type)
+                ]
+            )
+            return response.text
+        
+        except Exception as e:
+            error_msg = str(e).lower()
+            
+            # Rate limiting or quota errors - retry with backoff
+            if "rate" in error_msg or "quota" in error_msg or "429" in error_msg:
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s
+                    print(f"Rate limited, waiting {wait_time}s before retry...", file=sys.stderr)
+                    time.sleep(wait_time)
+                else:
+                    raise RuntimeError(f"Rate limit exceeded after {max_retries} attempts: {e}")
+            
+            # Timeout errors - retry
+            elif "timeout" in error_msg or "deadline" in error_msg:
+                if attempt < max_retries - 1:
+                    print(f"Request timed out, retrying (attempt {attempt + 2}/{max_retries})...", file=sys.stderr)
+                    time.sleep(2)
+                else:
+                    raise RuntimeError(f"Request timed out after {max_retries} attempts: {e}")
+            
+            # Other errors - don't retry
+            else:
+                raise RuntimeError(f"API error: {e}")
 
 
 if __name__ == "__main__":

@@ -254,16 +254,89 @@ python -c "from PIL import Image; img = Image.open('large.png'); img.thumbnail((
 
 ### Scripts work in terminal but not via Amplifier agent
 
-**Solution:** Agent needs full path to venv Python:
+**Solution:** Use the wrapper scripts instead:
 ```bash
-# Instead of:
-python examples/anthropic-vision.py image.png "prompt"
+# Best approach - auto-setup, handles venv automatically
+~/.amplifier/skills/image-vision/vision-analyze-robust.sh image.png "prompt"
 
-# Use:
+# Or specific provider
+~/.amplifier/skills/image-vision/vision-analyze.sh anthropic image.png "prompt"
+
+# Old approach (manual venv path) - NOT RECOMMENDED
 ~/.amplifier/skills/image-vision/.venv/bin/python \
   ~/.amplifier/skills/image-vision/examples/anthropic-vision.py \
   image.png "prompt"
 ```
+
+### Scripts time out after 30 seconds when called by agents
+
+**Problem:** Amplifier's bash tool has a default 30-second timeout. Vision API calls can take 5-60 seconds depending on image size and complexity.
+
+**Solution 1: Use the robust wrapper (RECOMMENDED)**
+```bash
+# This script has 60-second timeout and auto-fallback to other providers
+~/.amplifier/skills/image-vision/vision-analyze-robust.sh image.png "Describe this"
+```
+
+**Solution 2: Use custom timeout with robust wrapper**
+```bash
+# Increase timeout to 120 seconds for very large images
+~/.amplifier/skills/image-vision/vision-analyze-robust.sh image.png "Analyze" 120
+```
+
+**Solution 3: Try faster provider first**
+```bash
+# Gemini Flash is fastest (typically 3-10 seconds)
+~/.amplifier/skills/image-vision/vision-analyze.sh gemini image.png "Describe this"
+```
+
+**Typical API response times:**
+- Gemini Flash: 3-10 seconds (fastest)
+- Anthropic Claude: 5-15 seconds
+- OpenAI GPT-4: 8-20 seconds
+- Large images (>2MB): Add 5-20 seconds
+
+### Agent receives no output after vision call
+
+**Problem:** Vision analysis failed but agent proceeded to write analysis documents anyway, fabricating observations.
+
+**This is a CRITICAL failure mode** - agents must NEVER fabricate visual observations.
+
+**For AI agents using this skill:**
+
+✅ **REQUIRED PATTERN - Check exit code:**
+```bash
+OUTPUT=$(~/.amplifier/skills/image-vision/vision-analyze-robust.sh image.png "Analyze" 2>&1)
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "Vision analysis succeeded:"
+    echo "$OUTPUT"
+    # Proceed with analysis
+else
+    echo "ERROR: Vision analysis failed (exit code: $EXIT_CODE)"
+    echo "Error details: $OUTPUT"
+    echo ""
+    echo "I have NOT successfully analyzed the image."
+    echo "I cannot provide visual feedback without actually seeing the image."
+    echo ""
+    echo "Options:"
+    echo "1. Retry with different provider"
+    echo "2. Investigate the error"
+    echo "3. Defer visual analysis until issue is resolved"
+    # STOP HERE - do NOT proceed with fabricated observations
+    exit 1
+fi
+```
+
+❌ **NEVER DO THIS:**
+- Proceed to write design/UI analysis if vision failed
+- Fabricate pixel measurements or element sizes
+- Guess visual layout details from context
+- Pretend you saw images you didn't analyze
+- Write "based on the screenshot" when you have no output
+
+**If vision analysis fails, STOP and report it. Do not guess.**
 
 ## Verifying Setup
 

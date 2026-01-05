@@ -19,9 +19,10 @@ import openai
 import base64
 import sys
 import os
+import time
 
 
-def analyze_image(image_path: str, prompt: str) -> str:
+def analyze_image(image_path: str, prompt: str, max_retries: int = 2) -> str:
     """Analyze an image using Azure OpenAI vision capabilities.
     
     Args:
@@ -70,32 +71,50 @@ def analyze_image(image_path: str, prompt: str) -> str:
     # Get deployment name (or use default)
     deployment_name = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
     
-    # Call Azure OpenAI with vision
-    try:
-        response = client.chat.completions.create(
-            model=deployment_name,  # This is your deployment name in Azure
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": prompt
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{media_type};base64,{image_data}"
+    # Call Azure OpenAI with vision (with retry logic)
+    for attempt in range(max_retries):
+        try:
+            response = client.chat.completions.create(
+                model=deployment_name,  # This is your deployment name in Azure
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{media_type};base64,{image_data}"
+                            }
                         }
-                    }
-                ]
-            }],
-            max_tokens=1024
-        )
+                    ]
+                }],
+                max_tokens=1024,
+                timeout=60.0  # 60-second timeout
+            )
+            
+            return response.choices[0].message.content
         
-        return response.choices[0].message.content
-    
-    except openai.APIError as e:
-        raise RuntimeError(f"API error: {e}")
+        except openai.RateLimitError as e:
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s
+                print(f"Rate limited, waiting {wait_time}s before retry...", file=sys.stderr)
+                time.sleep(wait_time)
+            else:
+                raise RuntimeError(f"Rate limit exceeded after {max_retries} attempts: {e}")
+        
+        except openai.APITimeoutError as e:
+            if attempt < max_retries - 1:
+                print(f"Request timed out, retrying (attempt {attempt + 2}/{max_retries})...", file=sys.stderr)
+                time.sleep(2)
+            else:
+                raise RuntimeError(f"Request timed out after {max_retries} attempts (60s each): {e}")
+        
+        except openai.APIError as e:
+            # Other API errors - don't retry
+            raise RuntimeError(f"API error: {e}")
 
 
 if __name__ == "__main__":

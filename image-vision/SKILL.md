@@ -24,36 +24,53 @@ Analyze images using state-of-the-art LLM vision models. **Use the provided scri
 ### Something failing?
 → Check setup.md for troubleshooting
 
-## Quick Start (Use Canned Scripts)
+## Quick Start (Use Wrapper Scripts)
 
-**Most common case - use the provided scripts directly:**
+**ALWAYS use the wrapper scripts** - they handle venv setup automatically:
 
 ```bash
-# Anthropic Claude (recommended for most tasks)
-python examples/anthropic-vision.py <image_path> <prompt>
+# Simple analysis (auto-creates venv on first use)
+./vision-analyze.sh <provider> <image_path> <prompt>
 
-# OpenAI GPT-4 (good for detailed analysis)
-python examples/openai-vision.py <image_path> <prompt>
-
-# Google Gemini (fast, handles large images well)
-python examples/gemini-vision.py <image_path> <prompt>
-
-# Azure OpenAI (enterprise deployments)
-python examples/azure-vision.py <image_path> <prompt>
+# Robust analysis (auto-fallback if provider times out)
+./vision-analyze-robust.sh <image_path> <prompt> [timeout_seconds]
 ```
+
+**The wrapper scripts automatically:**
+- Create venv if it doesn't exist
+- Install required SDKs
+- Use venv Python (no manual activation needed)
+- Handle errors gracefully
 
 **Example usage:**
 
 ```bash
-# Analyze a UI screenshot
-python examples/anthropic-vision.py screenshot.png "Describe any UI bugs or issues you see"
+# Analyze a UI screenshot (Anthropic Claude)
+./vision-analyze.sh anthropic screenshot.png "Describe any UI bugs or issues you see"
 
-# Extract text from an image
-python examples/gemini-vision.py document.jpg "Extract all text from this image"
+# Extract text (Google Gemini - fastest)
+./vision-analyze.sh gemini document.jpg "Extract all text from this image"
 
-# Describe an image
-python examples/openai-vision.py photo.png "Describe this image in detail"
+# Robust analysis with auto-fallback (tries Gemini → Anthropic → OpenAI)
+./vision-analyze-robust.sh photo.png "Describe this image in detail"
+
+# With custom timeout (default is 60 seconds)
+./vision-analyze-robust.sh large-image.png "Analyze this" 120
 ```
+
+### Advanced: Direct Script Usage (Not Recommended)
+
+If you need to call the Python scripts directly, you MUST use the venv Python:
+
+```bash
+# ❌ WRONG - uses system Python, will fail
+python examples/anthropic-vision.py image.png "prompt"
+
+# ✅ CORRECT - uses venv Python
+./.venv/bin/python examples/anthropic-vision.py image.png "prompt"
+```
+
+**For agents:** Always use the wrapper scripts to avoid setup issues.
 
 ## Provider Comparison
 
@@ -84,23 +101,23 @@ python examples/openai-vision.py photo.png "Describe this image in detail"
 
 ```bash
 # UI/UX Analysis
-python examples/anthropic-vision.py app-screenshot.png \
+./vision-analyze.sh anthropic app-screenshot.png \
   "Analyze this UI for accessibility issues and suggest improvements"
 
-# Bug Identification
-python examples/anthropic-vision.py error-state.png \
+# Bug Identification (use robust for auto-fallback)
+./vision-analyze-robust.sh error-state.png \
   "What's wrong with this interface? Describe any visual bugs."
 
 # Content Moderation
-python examples/openai-vision.py user-upload.jpg \
+./vision-analyze.sh openai user-upload.jpg \
   "Does this image contain inappropriate content? Yes or no, and explain."
 
-# Document Understanding
-python examples/gemini-vision.py invoice.png \
+# Document Understanding (Gemini is fastest)
+./vision-analyze.sh gemini invoice.png \
   "Extract the total amount, date, and vendor name from this invoice"
 
 # Design Review
-python examples/anthropic-vision.py mockup.png \
+./vision-analyze-robust.sh mockup.png \
   "Provide design feedback on this mockup. Consider layout, typography, and color."
 ```
 
@@ -152,19 +169,117 @@ python examples/openai-vision.py data.png \
 
 | Task | Command |
 |------|---------|
-| Analyze image (Claude) | `python examples/anthropic-vision.py img.png "prompt"` |
-| Analyze image (GPT-4) | `python examples/openai-vision.py img.png "prompt"` |
-| Analyze image (Gemini) | `python examples/gemini-vision.py img.png "prompt"` |
-| Extract text (OCR) | Any script + "Extract all text from this image" |
+| Analyze (single provider) | `./vision-analyze.sh anthropic img.png "prompt"` |
+| Analyze (auto-fallback) | `./vision-analyze-robust.sh img.png "prompt"` |
+| Extract text (OCR) | `./vision-analyze.sh gemini img.png "Extract all text"` |
+| Health check | `./health-check.sh` |
 | Compare images | See patterns.md for custom script |
 | Batch process | See patterns.md for custom script |
 
+## ⚠️ CRITICAL INSTRUCTIONS FOR AGENTS
+
+**READ THIS BEFORE USING THIS SKILL:**
+
+### 1. Always Use the Wrapper Scripts
+
+```bash
+# For AI agents (recommended) - auto-fallback on timeout
+~/.amplifier/skills/image-vision/vision-analyze-robust.sh <image_path> <prompt>
+
+# Single provider (faster if you know which to use)
+~/.amplifier/skills/image-vision/vision-analyze.sh <provider> <image_path> <prompt>
+```
+
+**Examples:**
+```bash
+# Robust analysis (tries multiple providers if timeout)
+~/.amplifier/skills/image-vision/vision-analyze-robust.sh screenshot.png "Analyze this UI"
+
+# Specific provider
+~/.amplifier/skills/image-vision/vision-analyze.sh anthropic screenshot.png "Describe this"
+```
+
+### 2. ALWAYS Check Exit Code Before Using Output
+
+```bash
+# Correct usage pattern
+OUTPUT=$(~/.amplifier/skills/image-vision/vision-analyze-robust.sh image.png "Analyze this" 2>&1)
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "Vision analysis succeeded"
+    # Now you can use $OUTPUT
+else
+    echo "ERROR: Vision analysis failed (exit code: $EXIT_CODE)"
+    echo "Error details: $OUTPUT"
+    # STOP HERE - do NOT proceed
+    exit 1
+fi
+```
+
+### 3. NEVER Fabricate Visual Observations
+
+**If vision analysis fails, you MUST:**
+
+✅ **DO:**
+- Report failure explicitly to user
+- Provide error details from stderr
+- Ask user how to proceed (retry? different provider? skip visual analysis?)
+- Wait for user direction before continuing
+
+❌ **NEVER:**
+- Write analysis documents without successfully seeing images
+- Fabricate visual observations based on context/guesswork
+- Guess pixel measurements or UI element details
+- Pretend you analyzed screenshots you didn't actually see
+- Continue with tasks that require visual inspection if vision failed
+
+**Example of CORRECT failure handling:**
+
+```
+Agent: I attempted to analyze the 3 screenshots using the image-vision skill:
+- screenshot-1.png: ✗ Anthropic timed out (60s)
+- screenshot-1.png: ✗ Gemini timed out (60s)  
+- screenshot-1.png: ✗ OpenAI failed (API error)
+
+I have NOT successfully analyzed any of the screenshots. I cannot provide visual design 
+feedback without actually seeing the images.
+
+Options:
+1. Retry with different settings
+2. Investigate why all providers are failing
+3. Defer visual analysis until the issue is resolved
+
+I will NOT write design analysis documents based on guesswork or context alone.
+```
+
+### 4. Timeout Considerations
+
+Vision API calls typically take 5-60 seconds:
+- Gemini Flash: 3-10s (fastest)
+- Anthropic Claude: 5-15s
+- OpenAI GPT-4: 8-20s
+
+The wrapper scripts handle timeouts with:
+- 60-second default timeout (configurable)
+- Auto-fallback to faster providers (robust script)
+- Retry logic on transient failures
+
+If still hitting timeouts:
+- Use smaller images (resize to 2000px max)
+- Simplify prompts
+- Use faster models (Gemini Flash)
+
 ## Environment Setup Reminder
 
-**Before first use:**
+**For interactive use:**
 1. Create venv: `cd image-vision && uv venv`
 2. Install SDKs: `uv pip install anthropic openai google-generativeai`
 3. Set API keys: Export `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`
+
+**For agents:**
+- Just use the wrapper scripts - they auto-setup on first use
+- Verify health: `./health-check.sh`
 
 → See [`setup.md`](setup.md) for complete instructions
 

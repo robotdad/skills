@@ -17,9 +17,10 @@ import anthropic
 import base64
 import sys
 import os
+import time
 
 
-def analyze_image(image_path: str, prompt: str) -> str:
+def analyze_image(image_path: str, prompt: str, max_retries: int = 2) -> str:
     """Analyze an image using Claude's vision capabilities.
     
     Args:
@@ -56,34 +57,52 @@ def analyze_image(image_path: str, prompt: str) -> str:
     }
     media_type = media_types.get(ext, "image/jpeg")
     
-    # Call Claude with vision
-    try:
-        message = client.messages.create(
-            model="claude-sonnet-4-5",  # Latest model (September 2025)
-            max_tokens=1024,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": image_data
+    # Call Claude with vision (with retry logic)
+    for attempt in range(max_retries):
+        try:
+            message = client.messages.create(
+                model="claude-sonnet-4-5",  # Latest model (September 2025)
+                max_tokens=1024,
+                timeout=60.0,  # 60-second timeout
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": image_data
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": prompt
                         }
-                    },
-                    {
-                        "type": "text",
-                        "text": prompt
-                    }
-                ]
-            }]
-        )
+                    ]
+                }]
+            )
+            
+            return message.content[0].text
         
-        return message.content[0].text
-    
-    except anthropic.APIError as e:
-        raise RuntimeError(f"API error: {e}")
+        except anthropic.RateLimitError as e:
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s
+                print(f"Rate limited, waiting {wait_time}s before retry...", file=sys.stderr)
+                time.sleep(wait_time)
+            else:
+                raise RuntimeError(f"Rate limit exceeded after {max_retries} attempts: {e}")
+        
+        except anthropic.APITimeoutError as e:
+            if attempt < max_retries - 1:
+                print(f"Request timed out, retrying (attempt {attempt + 2}/{max_retries})...", file=sys.stderr)
+                time.sleep(2)
+            else:
+                raise RuntimeError(f"Request timed out after {max_retries} attempts (60s each): {e}")
+        
+        except anthropic.APIError as e:
+            # Other API errors - don't retry
+            raise RuntimeError(f"API error: {e}")
 
 
 if __name__ == "__main__":
