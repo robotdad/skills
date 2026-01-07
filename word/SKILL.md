@@ -11,15 +11,15 @@ license: MIT
 
 A safety-first Word document manipulation skill with three progressive API levels. Built following the modular design philosophy with automatic temp management, validation, and transactional operations.
 
-**Current Status:** Phase 1 Complete (Core Infrastructure)
+**Current Status:** Phase 1 & 2 Complete (Core Infrastructure + High-Level APIs)
 
 ## Workflow Decision Tree
 
 ### Creating a simple formatted document
-→ Use Simple API (DocumentBuilder) - See "Quick Start" below
+→ Use Simple API (DocumentBuilder) - See "Simple API" section
 
 ### Need custom styles, sections, or complex layouts
-→ Use Advanced API - **Coming in Phase 2**
+→ Use Advanced API (AdvancedDocument) - See "Advanced API" section
 
 ### Need to edit existing DOCX or access raw OOXML
 → Use OOXML API - See "OOXML Layer" below
@@ -225,30 +225,98 @@ print(f"Author: {props.author}")
 print(f"Title: {props.title}")
 ```
 
-## Phase 2 & 3 (Coming Soon)
+## Phase 2 Features (Available Now)
 
-### Simple API (Phase 2)
+### Simple API - DocumentBuilder
+
+The Simple API provides a fluent interface for creating documents quickly:
+
 ```python
 from word import DocumentBuilder
 
-doc = DocumentBuilder()
-doc.add_heading("Report", level=1)
-doc.add_paragraph("Content", bold=False)
-doc.add_list(["Item 1", "Item 2"], numbered=False)
-doc.save("report.docx")  # 5 lines instead of 200!
+# Method chaining for concise document creation
+doc = (DocumentBuilder()
+    .add_heading("Monthly Report", level=1)
+    .add_paragraph("Executive Summary", bold=True)
+    .add_paragraph("This report covers Q4 performance metrics.")
+    .add_heading("Key Metrics", level=2)
+    .add_list([
+        "Revenue increased 15%",
+        "Customer satisfaction: 94%",
+        "New features delivered: 12"
+    ], numbered=False)
+    .add_heading("Data Table", level=2)
+    .add_table(
+        data=[["Q3", "100K"], ["Q4", "115K"]],
+        headers=["Quarter", "Revenue"]
+    )
+    .add_page_break()
+    .add_heading("Conclusion", level=1)
+    .add_paragraph("Goals exceeded across all metrics.")
+    .save("report.docx"))
 ```
 
-### Advanced API (Phase 2)
-- Custom styles and themes
-- Multiple sections with different layouts
-- Advanced table features (merged cells, borders)
-- Headers/footers
-- Complex image placement
+**Available methods:**
+- `add_heading(text, level=1)` - Add heading (levels 1-9)
+- `add_paragraph(text, bold=False, italic=False, font_size=None)` - Add formatted paragraph
+- `add_list(items, numbered=False)` - Add bulleted or numbered list
+- `add_table(data, headers=None)` - Add table from 2D array
+- `add_image(path, width_inches=None)` - Add image with optional sizing
+- `add_page_break()` - Add page break
+- `save(output_path, overwrite=False)` - Save with protection
 
-### Utilities (Phase 3)
-- Format conversion (DOCX ↔ Markdown, PDF)
-- Document templates
-- Batch processing helpers
+### Advanced API - Full Control
+
+For complex documents requiring custom styles, sections, and layouts:
+
+```python
+from word import AdvancedDocument
+
+# Create document with advanced features
+doc = AdvancedDocument()
+
+# Create custom styles
+doc.styles.add_paragraph_style("Highlight", font_size=14, bold=True)
+doc.styles.add_paragraph_style("Code", font_name="Courier New", font_size=10)
+
+# Configure page layout
+doc.sections.set_margins(top=1.0, bottom=1.0, left=1.5, right=1.5)
+doc.sections.add_header("Confidential Report")
+doc.sections.add_footer("Page X")
+
+# Add content with custom styles
+doc.add_heading("Technical Specification", level=1)
+doc.add_paragraph("Important note", style="Highlight")
+doc.add_paragraph("def example():\n    return True", style="Code")
+
+# Create complex table
+table = doc.tables.create_table(rows=3, cols=4)
+# Populate table cells...
+
+doc.save("advanced_doc.docx")
+```
+
+**Available managers:**
+- `doc.styles` - StyleManager for custom paragraph and character styles
+- `doc.sections` - SectionManager for page layout, margins, headers/footers
+- `doc.tables` - TableBuilder for advanced table features
+- `doc.images` - ImageManager for precise image control
+
+### API Router - Get Recommendations
+
+Let the router suggest which API level to use:
+
+```python
+from word import recommend_api
+
+# Get recommendation for your task
+rec = recommend_api("Create a document with custom fonts and colors")
+
+print(rec.api_level)      # "advanced"
+print(rec.reasoning)      # Why this API was recommended
+print(rec.example_code)   # Working code example
+print(rec.alternatives)   # Other options to consider
+```
 
 ## Error Handling
 
@@ -302,11 +370,19 @@ python -m pytest tests/ -v
 ```
 word/
 ├── __init__.py          # Public API exports
+├── simple.py           # DocumentBuilder (Simple API)
+├── advanced.py         # AdvancedDocument + managers (Advanced API)
+├── router.py           # API recommendation engine
 ├── safety.py           # TempFileManager, SafeFileOperations, DocumentTransaction
 ├── validation.py       # ValidationResult, validate_* functions
-├── ooxml.py           # OOXMLDocument wrapper
+├── ooxml.py           # OOXMLDocument wrapper (OOXML API)
+├── templates/         # Document templates
+│   └── modern.docx    # Microsoft 365 default (Aptos)
 ├── requirements.txt    # Dependencies
 └── tests/             # Test suite
+    ├── test_simple.py
+    ├── test_advanced.py
+    ├── test_router.py
     ├── test_safety.py
     ├── test_validation.py
     └── test_ooxml.py

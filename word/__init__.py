@@ -19,43 +19,50 @@ A three-tier API for working with DOCX documents:
    - Custom XML elements
    - Advanced OOXML operations
 
-Core Infrastructure (Phase 1 - Available Now):
+Core Infrastructure (Phase 1 - Available):
     - Safety mechanisms (temp files, transactions, overwrite protection)
     - Validation (document structure, styles, content)
     - OOXML foundation layer
 
-Coming Soon (Phase 2 & 3):
-    - Simple API (DocumentBuilder)
-    - Advanced API (AdvancedDocument, StyleManager, etc.)
-    - Router (API recommendation engine)
-    - Conversion utilities
+High-Level APIs (Phase 2 - Available):
+    - Simple API (DocumentBuilder) - For 80% of use cases
+    - Advanced API (AdvancedDocument, StyleManager, etc.) - For fine-grained control
+    - Router (API recommendation engine) - Guides you to the right API
+
+Coming Soon (Phase 3):
+    - Conversion utilities (DOCX to/from other formats)
+    - Batch processing utilities
 
 Example Usage:
-    >>> # Phase 1: Core infrastructure
-    >>> from docx_skill.safety import TempFileManager, DocumentTransaction
-    >>> from docx_skill.validation import validate_docx
-    >>> from docx_skill.ooxml import OOXMLDocument
+    >>> # Simple API - Quick document creation
+    >>> from docx_skill.simple import DocumentBuilder
     >>> 
-    >>> # Safe temp file operations
-    >>> with TempFileManager() as temp_mgr:
-    ...     temp_path = temp_mgr.create_temp_file("work.docx")
-    ...     # Work with temp file...
+    >>> doc = DocumentBuilder()
+    >>> doc.add_heading("Report Title", level=1)
+    >>> doc.add_paragraph("Introduction", bold=True)
+    >>> doc.add_list(["Item 1", "Item 2", "Item 3"])
+    >>> doc.save("report.docx")
     >>> 
-    >>> # Validate documents
-    >>> result = validate_docx("document.docx")
-    >>> if result.is_valid:
-    ...     print("Document is valid!")
+    >>> # Advanced API - Full control
+    >>> from docx_skill.advanced import AdvancedDocument
     >>> 
-    >>> # OOXML layer operations
-    >>> doc = OOXMLDocument()
-    >>> doc.add_heading("Title", level=1)
-    >>> doc.add_paragraph("Content")
-    >>> doc.save("output.docx")
+    >>> doc = AdvancedDocument()
+    >>> doc.styles.add_paragraph_style("Emphasis", font_size=14, bold=True)
+    >>> doc.sections.set_margins(1.0, 1.0, 1.5, 1.5)
+    >>> doc.add_paragraph("Styled text", style="Emphasis")
+    >>> doc.save("advanced.docx")
+    >>> 
+    >>> # Router - Get API recommendation
+    >>> from docx_skill.router import recommend_api
+    >>> 
+    >>> rec = recommend_api("Create document with custom styles")
+    >>> print(rec.api_level)  # "advanced"
+    >>> print(rec.example_code)
 
-Version: 0.1.0 (Phase 1 - Core Infrastructure)
+Version: 0.2.0 (Phase 1 + Phase 2)
 """
 
-# Phase 1: Core Infrastructure (AVAILABLE NOW)
+# Phase 1: Core Infrastructure
 from .safety import (
     TempFileManager,
     SafeFileOperations,
@@ -82,6 +89,27 @@ from .ooxml import (
     set_xml_property,
 )
 
+# Phase 2: High-Level APIs
+from .simple import (
+    DocumentBuilder,
+)
+
+from .advanced import (
+    AdvancedDocument,
+    StyleManager,
+    SectionManager,
+    TableBuilder,
+    ImageManager,
+)
+
+from .router import (
+    recommend_api,
+    should_use_simple_api,
+    should_use_advanced_api,
+    should_use_ooxml_api,
+    Recommendation,
+)
+
 # Public API exports
 __all__ = [
     # Safety
@@ -106,8 +134,25 @@ __all__ = [
     'get_xml_element',
     'get_xml_elements',
     'set_xml_property',
+    
+    # Simple API
+    'DocumentBuilder',
+    
+    # Advanced API
+    'AdvancedDocument',
+    'StyleManager',
+    'SectionManager',
+    'TableBuilder',
+    'ImageManager',
+    
+    # Router
+    'recommend_api',
+    'should_use_simple_api',
+    'should_use_advanced_api',
+    'should_use_ooxml_api',
+    'Recommendation',
 ]
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 __author__ = 'Amplifier AI'
 __license__ = 'MIT'
