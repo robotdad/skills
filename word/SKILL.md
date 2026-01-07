@@ -30,19 +30,59 @@ A safety-first Word document manipulation skill with three progressive API level
 ### Need safe temp file operations
 → Use TempFileManager - See "Safety Mechanisms" section
 
-## Quick Start
+## One-Time Setup
 
-### Installation
+**Use `uv` for isolated environment:**
 
 ```bash
-cd skills/word
-pip install -r requirements.txt
+# Navigate to skill directory (wherever skills are loaded from)
+cd /path/to/skills/word  # e.g., ~/.amplifier/skills/word or ./skills/word
+
+# Create virtual environment with uv
+uv venv
+
+# Install dependencies
+uv pip install -r requirements.txt
+```
+
+**Verify installation:**
+
+```bash
+source .venv/bin/activate
+python -c "from word import OOXMLDocument; print('✓ Word skill installed')"
+deactivate
+```
+
+## Quick Start
+
+### Option 1: Using venv Python directly (recommended for agents)
+
+```bash
+# Full path to venv Python
+/path/to/skills/word/.venv/bin/python your_script.py
+```
+
+### Option 2: Activate venv first (interactive use)
+
+```bash
+source /path/to/skills/word/.venv/bin/activate
+python your_script.py
+deactivate  # when done
+```
+
+### Option 3: Add to PYTHONPATH (for scripts in other directories)
+
+```python
+import sys
+sys.path.insert(0, '/path/to/skills')  # Parent of word/
+
+from word import OOXMLDocument, TempFileManager, validate_docx
 ```
 
 ### Basic Usage - Safety Mechanisms
 
 ```python
-from docx_skill import TempFileManager, validate_docx, OOXMLDocument
+from word import TempFileManager, validate_docx, OOXMLDocument
 
 # Safe temp operations with automatic cleanup
 with TempFileManager() as temp_mgr:
@@ -59,14 +99,16 @@ else:
 
 # Load and inspect document structure
 doc = OOXMLDocument.load("document.docx")
-print(f"Paragraphs: {len(doc.paragraphs)}")
-print(f"Title: {doc.core_properties.title}")
+paragraphs = doc.get_paragraphs()
+print(f"Paragraphs: {len(paragraphs)}")
+props = doc.get_core_properties()
+print(f"Title: {props.title}")
 ```
 
 ### Transactional Operations
 
 ```python
-from docx_skill import DocumentTransaction, OOXMLDocument
+from word import DocumentTransaction, OOXMLDocument
 
 # Atomic document operations with rollback
 with DocumentTransaction("input.docx") as txn:
@@ -87,23 +129,27 @@ with DocumentTransaction("input.docx") as txn:
 
 **TempFileManager** - Context manager for automatic temp cleanup
 ```python
-with TempFileManager(prefix="word_") as temp_mgr:
+from word import TempFileManager
+
+with TempFileManager() as temp_mgr:
     temp_file = temp_mgr.create_temp_file("output.docx")
-    temp_dir = temp_mgr.create_temp_dir()
+    temp_dir = temp_mgr.get_temp_dir()
     # Automatic cleanup on exit or error
 ```
 
 **SafeFileOperations** - Overwrite protection and backups
 ```python
-from docx_skill import SafeFileOperations
+from word import SafeFileOperations
 
+ops = SafeFileOperations()
 # Prevents accidental overwrites
-SafeFileOperations.safe_write(content, "output.docx")  # Prompts if exists
-SafeFileOperations.safe_write(content, "output.docx", force=True)  # Skip prompt
+ops.write_file(content_bytes, "output.docx", allow_overwrite=False)
 ```
 
 **DocumentTransaction** - Rollback support
 ```python
+from word import DocumentTransaction
+
 with DocumentTransaction("doc.docx") as txn:
     # Work with txn.get_working_path()
     # Commit to persist, otherwise rolls back
@@ -114,25 +160,36 @@ with DocumentTransaction("doc.docx") as txn:
 
 **validate_docx** - Check if file is valid DOCX
 ```python
+from word import validate_docx
+
 result = validate_docx("file.docx")
 # Returns ValidationResult with is_valid, errors, warnings, info
 ```
 
 **validate_styles** - Check style consistency
 ```python
-result = validate_styles(doc)
+from word import validate_styles, OOXMLDocument
+
+doc = OOXMLDocument.load("file.docx")
+result = validate_styles(doc.document)  # Pass python-docx Document object
 # Checks for unused styles, style consistency
 ```
 
 **validate_structure** - Verify document structure
 ```python
-result = validate_structure(doc)
+from word import validate_structure, OOXMLDocument
+
+doc = OOXMLDocument.load("file.docx")
+result = validate_structure(doc.document)
 # Checks heading hierarchy, section structure
 ```
 
 **validate_content** - Content constraints
 ```python
-result = validate_content(doc, min_words=100, max_words=5000)
+from word import validate_content, OOXMLDocument
+
+doc = OOXMLDocument.load("file.docx")
+result = validate_content(doc.document, min_words=100, max_words=5000)
 # Validates word count and other constraints
 ```
 
@@ -141,26 +198,29 @@ result = validate_content(doc, min_words=100, max_words=5000)
 **OOXMLDocument** - Wrapper around python-docx Document
 
 ```python
-from docx_skill import OOXMLDocument
+from word import OOXMLDocument
 
-# Create new document
-doc = OOXMLDocument.create()
+# Create new document (uses modern Aptos template by default)
+doc = OOXMLDocument()
 doc.add_heading("Title", level=1)
 doc.add_paragraph("Content here")
 doc.save("output.docx")
+
+# Create with legacy Calibri template (for compatibility)
+doc = OOXMLDocument(use_modern_template=False)
 
 # Load existing document
 doc = OOXMLDocument.load("input.docx")
 
 # Access structure
-for para in doc.paragraphs:
+for para in doc.get_paragraphs():
     print(para.text)
 
-for table in doc.tables:
+for table in doc.get_tables():
     print(f"Table: {len(table.rows)} rows")
 
 # Access properties
-props = doc.core_properties
+props = doc.get_core_properties()
 print(f"Author: {props.author}")
 print(f"Title: {props.title}")
 ```
@@ -169,7 +229,7 @@ print(f"Title: {props.title}")
 
 ### Simple API (Phase 2)
 ```python
-from docx_skill import DocumentBuilder
+from word import DocumentBuilder
 
 doc = DocumentBuilder()
 doc.add_heading("Report", level=1)
@@ -210,7 +270,7 @@ except Exception as e:
 ## Common OOXML Namespaces
 
 ```python
-from docx_skill import NAMESPACES
+from word import NAMESPACES
 
 # Word processing ML
 NAMESPACES['w']     # http://schemas.openxmlformats.org/wordprocessingml/2006/main
@@ -227,14 +287,13 @@ NAMESPACES['wp']    # http://schemas.openxmlformats.org/drawingml/2006/wordproce
 ## Testing
 
 ```bash
-# Run all tests
-cd skills/word
+# Run all tests (from skill directory, with venv activated)
+cd /path/to/skills/word
+source .venv/bin/activate
 python -m pytest tests/ -v
 
-# Run specific test module
-python -m pytest tests/test_safety.py -v
-python -m pytest tests/test_validation.py -v
-python -m pytest tests/test_ooxml.py -v
+# Or use venv Python directly
+.venv/bin/python -m pytest tests/ -v
 ```
 
 ## Architecture
@@ -265,8 +324,15 @@ word/
 - **Validation**: O(n) where n = document elements
 - **OOXMLDocument**: Lazy loading, minimal memory overhead
 
-## See Also
+## Modern Template (Microsoft 365)
 
-- **README.md** - Complete module contract documentation
-- **Phase 2 Design** - Simple & Advanced APIs (in development)
-- **Phase 3 Design** - Conversion utilities (planned)
+By default, `OOXMLDocument()` uses the modern Microsoft 365 template bundled at `templates/modern.docx`:
+
+- **Body font:** Aptos (Microsoft 365 default since 2024)
+- **Heading font:** Aptos Display
+- **Legacy font:** Calibri (Office 2007-2023)
+
+To use the legacy template for compatibility with older systems:
+```python
+doc = OOXMLDocument(use_modern_template=False)
+```
