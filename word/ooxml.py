@@ -40,6 +40,11 @@ from docx.oxml.ns import qn
 from docx.oxml import parse_xml
 from docx.oxml.xmlchemy import BaseOxmlElement
 import xml.etree.ElementTree as ET
+import os
+
+
+# Path to modern template (Aptos font, Microsoft 365 defaults)
+_MODERN_TEMPLATE_PATH = Path(__file__).parent / "templates" / "modern.docx"
 
 
 # Common OOXML namespaces
@@ -85,22 +90,34 @@ class OOXMLDocument:
         ...     print(para.text)
     """
     
-    def __init__(self, document: Optional[Document] = None):
+    def __init__(self, document: Optional[Document] = None, use_modern_template: bool = True):
         """Initialize OOXMLDocument.
         
         Args:
             document: Existing python-docx Document (creates new if None)
+            use_modern_template: Use modern Microsoft 365 template with Aptos font (default: True)
             
         Example:
-            >>> # New document
+            >>> # New document with modern template (Aptos font)
             >>> doc = OOXMLDocument()
+            >>> 
+            >>> # New document with legacy python-docx template (Calibri font)
+            >>> doc = OOXMLDocument(use_modern_template=False)
             >>> 
             >>> # Wrap existing
             >>> from docx import Document
             >>> existing = Document("file.docx")
             >>> doc = OOXMLDocument(existing)
         """
-        self.document = document if document is not None else Document()
+        if document is not None:
+            self.document = document
+        elif use_modern_template and _MODERN_TEMPLATE_PATH.exists():
+            # Use modern Microsoft 365 template with Aptos font
+            self.document = Document(str(_MODERN_TEMPLATE_PATH))
+        else:
+            # Fall back to python-docx default template (Calibri font)
+            self.document = Document()
+        
         self.path: Optional[Path] = None
     
     @classmethod
