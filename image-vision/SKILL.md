@@ -100,7 +100,7 @@ python examples/anthropic-vision.py image.png "prompt"
 ## Common Use Cases
 
 ```bash
-# UI/UX Analysis
+# UI/UX Analysis - High-level layout and spacing
 ./vision-analyze.sh anthropic app-screenshot.png \
   "Analyze this UI for accessibility issues and suggest improvements"
 
@@ -116,9 +116,84 @@ python examples/anthropic-vision.py image.png "prompt"
 ./vision-analyze.sh gemini invoice.png \
   "Extract the total amount, date, and vendor name from this invoice"
 
-# Design Review
+# Design Review - Layout, color, hierarchy (not typography details)
 ./vision-analyze-robust.sh mockup.png \
-  "Provide design feedback on this mockup. Consider layout, typography, and color."
+  "Provide design feedback on this mockup. Consider layout, color hierarchy, and spacing."
+```
+
+## ⚠️ Known Limitations for Web UI Analysis
+
+### Typography and Font Detection
+
+Vision models **struggle with precise typography** at typical screenshot resolutions:
+
+**❌ Unreliable for:**
+- Distinguishing serif vs sans-serif fonts at small sizes (<16px)
+- Identifying specific font families (Inter vs Roboto vs Arial)
+- Detecting subtle weight differences (400 vs 500)
+- Precise alignment measurements (<5px differences)
+
+**✅ Reliable for:**
+- High-level layout issues (spacing, hierarchy, colors)
+- Large size differences (14px vs 24px heading sizes)
+- Missing elements or obviously broken UI states
+- Color contrast and accessibility problems
+
+### Best Practice: Multi-Modal Investigation
+
+**For Web UI bugs, use this hierarchy:**
+
+```bash
+# 1. Vision for TRIAGE (identify area of concern)
+./vision-analyze-robust.sh screenshot.png "Are there any visual inconsistencies in the navigation?"
+
+# 2. Browser inspection for FACTS (if typography/font suspected)
+# Use Playwright or DevTools to query computed CSS:
+# const styles = await page.evaluate(() => ({
+#   fontFamily: getComputedStyle(element).fontFamily
+# }));
+
+# 3. Code investigation for ROOT CAUSE
+# grep -r ".suspicious-class" src/
+
+# 4. Vision for VERIFICATION (after fix applied)
+./vision-analyze-robust.sh fixed.png "Is the navigation font now consistent?"
+```
+
+### When to Stop Using Vision
+
+If vision gives **contradictory results** across 2+ attempts on similar screenshots:
+1. **Stop** asking vision for more detailed analysis
+2. **Switch** to browser DevTools inspection (query computed styles)
+3. **Use vision only** for final verification after fix is applied
+
+This indicates the issue is too subtle for vision models to detect reliably.
+
+### Prompt Patterns for Web UI
+
+**Font/Typography (with caveats):**
+```bash
+# Be explicit about what to look for
+./vision-analyze.sh anthropic ui.png \
+  "Look at the navigation text. Do any items have decorative 'feet' at letter ends (serif font) 
+  while others have clean straight edges (sans-serif)? Point out any font style differences."
+  
+# Note: Small fonts may be unreliable - verify with browser inspection
+```
+
+**Alignment (relative observations):**
+```bash
+# Ask for noticeable differences, not pixel precision
+./vision-analyze.sh anthropic ui.png \
+  "Is the bullet (•) noticeably misaligned with the text baseline? 
+  Describe its vertical position relative to the text."
+```
+
+**Layout and Spacing:**
+```bash
+# Vision is GOOD at this
+./vision-analyze.sh anthropic ui.png \
+  "Compare the spacing between navigation sections. Is it consistent?"
 ```
 
 ## Output Format
