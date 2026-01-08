@@ -19,14 +19,14 @@ import sys
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from advanced import (
+from scripts.advanced import (
     AdvancedDocument,
     StyleManager,
     SectionManager,
     TableBuilder,
     ImageManager,
 )
-from ooxml import OOXMLDocument
+from scripts.ooxml import OOXMLDocument
 
 
 class TestAdvancedDocument:

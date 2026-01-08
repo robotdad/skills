@@ -20,8 +20,8 @@ import sys
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from simple import DocumentBuilder
-from ooxml import OOXMLDocument
+from scripts.simple import DocumentBuilder
+from scripts.ooxml import OOXMLDocument
 
 
 class TestDocumentBuilder:

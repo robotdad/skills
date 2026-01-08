@@ -10,7 +10,7 @@ from pathlib import Path
 # Add parent directory to path to import docx_skill
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ooxml import OOXMLDocument, NAMESPACES, qualified_name, get_xml_element, get_xml_elements
+from scripts.ooxml import OOXMLDocument, NAMESPACES, qualified_name, get_xml_element, get_xml_elements
 import tempfile
 import shutil
 

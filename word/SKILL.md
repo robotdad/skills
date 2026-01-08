@@ -55,7 +55,7 @@ uv pip install -r requirements.txt
 
 ```bash
 source .venv/bin/activate
-python -c "from word import OOXMLDocument; print('✓ Word skill installed')"
+python -c "from scripts import OOXMLDocument; print('✓ Word skill installed')"
 deactivate
 ```
 
@@ -80,15 +80,15 @@ deactivate  # when done
 
 ```python
 import sys
-sys.path.insert(0, '/path/to/skills')  # Parent of word/
+sys.path.insert(0, '/path/to/skills/word')  # Path to word skill directory
 
-from word import OOXMLDocument, TempFileManager, validate_docx
+from scripts import OOXMLDocument, TempFileManager, validate_docx
 ```
 
 ### Basic Usage - Safety Mechanisms
 
 ```python
-from word import TempFileManager, validate_docx, OOXMLDocument
+from scripts import TempFileManager, validate_docx, OOXMLDocument
 
 # Safe temp operations with automatic cleanup
 with TempFileManager() as temp_mgr:
@@ -114,7 +114,7 @@ print(f"Title: {props.title}")
 ### Transactional Operations
 
 ```python
-from word import DocumentTransaction, OOXMLDocument
+from scripts import DocumentTransaction, OOXMLDocument
 
 # Atomic document operations with rollback
 with DocumentTransaction("input.docx") as txn:
@@ -135,7 +135,7 @@ with DocumentTransaction("input.docx") as txn:
 
 **TempFileManager** - Context manager for automatic temp cleanup
 ```python
-from word import TempFileManager
+from scripts import TempFileManager
 
 with TempFileManager() as temp_mgr:
     temp_file = temp_mgr.create_temp_file("output.docx")
@@ -145,7 +145,7 @@ with TempFileManager() as temp_mgr:
 
 **SafeFileOperations** - Overwrite protection and backups
 ```python
-from word import SafeFileOperations
+from scripts import SafeFileOperations
 
 ops = SafeFileOperations()
 # Prevents accidental overwrites
@@ -154,7 +154,7 @@ ops.write_file(content_bytes, "output.docx", allow_overwrite=False)
 
 **DocumentTransaction** - Rollback support
 ```python
-from word import DocumentTransaction
+from scripts import DocumentTransaction
 
 with DocumentTransaction("doc.docx") as txn:
     # Work with txn.get_working_path()
@@ -166,7 +166,7 @@ with DocumentTransaction("doc.docx") as txn:
 
 **validate_docx** - Check if file is valid DOCX
 ```python
-from word import validate_docx
+from scripts import validate_docx
 
 result = validate_docx("file.docx")
 # Returns ValidationResult with is_valid, errors, warnings, info
@@ -174,7 +174,7 @@ result = validate_docx("file.docx")
 
 **validate_styles** - Check style consistency
 ```python
-from word import validate_styles, OOXMLDocument
+from scripts import validate_styles, OOXMLDocument
 
 doc = OOXMLDocument.load("file.docx")
 result = validate_styles(doc.document)  # Pass python-docx Document object
@@ -183,7 +183,7 @@ result = validate_styles(doc.document)  # Pass python-docx Document object
 
 **validate_structure** - Verify document structure
 ```python
-from word import validate_structure, OOXMLDocument
+from scripts import validate_structure, OOXMLDocument
 
 doc = OOXMLDocument.load("file.docx")
 result = validate_structure(doc.document)
@@ -192,7 +192,7 @@ result = validate_structure(doc.document)
 
 **validate_content** - Content constraints
 ```python
-from word import validate_content, OOXMLDocument
+from scripts import validate_content, OOXMLDocument
 
 doc = OOXMLDocument.load("file.docx")
 result = validate_content(doc.document, min_words=100, max_words=5000)
@@ -204,7 +204,7 @@ result = validate_content(doc.document, min_words=100, max_words=5000)
 **OOXMLDocument** - Wrapper around python-docx Document
 
 ```python
-from word import OOXMLDocument
+from scripts import OOXMLDocument
 
 # Create new document (uses modern Aptos template by default)
 doc = OOXMLDocument()
@@ -238,7 +238,7 @@ print(f"Title: {props.title}")
 The Simple API provides a fluent interface for creating documents quickly:
 
 ```python
-from word import DocumentBuilder
+from scripts import DocumentBuilder
 
 # Method chaining for concise document creation
 doc = (DocumentBuilder()
@@ -276,7 +276,7 @@ doc = (DocumentBuilder()
 For complex documents requiring custom styles, sections, and layouts:
 
 ```python
-from word import AdvancedDocument
+from scripts import AdvancedDocument
 
 # Create document with advanced features
 doc = AdvancedDocument()
@@ -313,7 +313,7 @@ doc.save("advanced_doc.docx")
 Let the router suggest which API level to use:
 
 ```python
-from word import recommend_api
+from scripts import recommend_api
 
 # Get recommendation for your task
 rec = recommend_api("Create a document with custom fonts and colors")
@@ -333,7 +333,7 @@ Convert DOCX documents to Markdown or extract plain text for LLM workflows, anal
 **DOCX to Markdown** - Using markitdown (zero system dependencies)
 
 ```python
-from word import docx_to_markdown, is_markitdown_available
+from scripts import docx_to_markdown, is_markitdown_available
 
 # Check if markitdown is installed
 if not is_markitdown_available():
@@ -355,7 +355,7 @@ markdown = docx_to_markdown("document.docx")
 **Extract Plain Text** - Using python-docx (no additional dependencies)
 
 ```python
-from word import extract_text
+from scripts import extract_text
 
 # Extract all text content (no formatting)
 text = extract_text("document.docx")
@@ -407,7 +407,7 @@ except Exception as e:
 ## Common OOXML Namespaces
 
 ```python
-from word import NAMESPACES
+from scripts import NAMESPACES
 
 # Word processing ML
 NAMESPACES['w']     # http://schemas.openxmlformats.org/wordprocessingml/2006/main
@@ -438,20 +438,24 @@ python -m pytest tests/ -v
 **Module Structure:**
 ```
 word/
-├── __init__.py          # Public API exports
-├── simple.py           # DocumentBuilder (Simple API)
-├── advanced.py         # AdvancedDocument + managers (Advanced API)
-├── router.py           # API recommendation engine
-├── safety.py           # TempFileManager, SafeFileOperations, DocumentTransaction
-├── validation.py       # ValidationResult, validate_* functions
-├── ooxml.py           # OOXMLDocument wrapper (OOXML API)
+├── SKILL.md           # Skill documentation
+├── requirements.txt    # Dependencies
 ├── templates/         # Document templates
 │   └── modern.docx    # Microsoft 365 default (Aptos)
-├── requirements.txt    # Dependencies
+├── scripts/           # Python modules
+│   ├── __init__.py          # Public API exports
+│   ├── simple.py           # DocumentBuilder (Simple API)
+│   ├── advanced.py         # AdvancedDocument + managers (Advanced API)
+│   ├── router.py           # API recommendation engine
+│   ├── conversion.py       # DOCX conversion utilities
+│   ├── safety.py           # TempFileManager, SafeFileOperations, DocumentTransaction
+│   ├── validation.py       # ValidationResult, validate_* functions
+│   └── ooxml.py           # OOXMLDocument wrapper (OOXML API)
 └── tests/             # Test suite
     ├── test_simple.py
     ├── test_advanced.py
     ├── test_router.py
+    ├── test_conversion.py
     ├── test_safety.py
     ├── test_validation.py
     └── test_ooxml.py

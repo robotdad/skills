@@ -15,7 +15,7 @@ import sys
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from router import (
+from scripts.router import (
     recommend_api,
     should_use_simple_api,
     should_use_advanced_api,

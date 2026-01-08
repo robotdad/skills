@@ -104,6 +104,9 @@ class DocumentBuilder:
             self._doc = OOXMLDocument.load(template)
         
         self._safe_ops = SafeFileOperations(default_allow_overwrite=False)
+        
+        # Cache for list numId lookups to avoid repeated XML parsing
+        self._list_numids_cache: Optional[tuple] = None
     
     def add_heading(self, text: str, level: int = 1) -> 'DocumentBuilder':
         """Add heading with specified level.
@@ -160,11 +163,95 @@ class DocumentBuilder:
         
         return self
     
+    def _get_list_numids(self) -> tuple:
+        """
+        Find numId values for bullet and decimal lists in document.
+        
+        This dynamically looks up the correct numId values by examining the
+        numbering.xml part. This is necessary because python-docx reorganizes
+        numbering.xml when saving, causing hardcoded numId values to become
+        invalid.
+        
+        Returns:
+            tuple: (bullet_numId, decimal_numId) or (None, None) if not found
+            
+        Note:
+            Results are cached after first call to avoid repeated XML parsing.
+        """
+        # Return cached values if available
+        if self._list_numids_cache is not None:
+            return self._list_numids_cache
+        
+        from docx.oxml.ns import qn
+        
+        bullet_numid = None
+        decimal_numid = None
+        
+        try:
+            # Access the numbering part
+            numbering_part = self._doc.document.part.numbering_part
+            if numbering_part is None:
+                # No numbering part exists - document has no list definitions
+                self._list_numids_cache = (None, None)
+                return self._list_numids_cache
+            
+            # Get the numbering element (root of numbering.xml)
+            numbering = numbering_part.element
+            
+            # Build a map of abstractNumId -> format
+            abstract_formats = {}
+            for abstract_num in numbering.findall(qn('w:abstractNum')):
+                abstract_id = abstract_num.get(qn('w:abstractNumId'))
+                
+                # Get the format from level 0
+                lvl = abstract_num.find(f'.//{qn("w:lvl")}[@{qn("w:ilvl")}="0"]')
+                if lvl is not None:
+                    num_fmt = lvl.find(qn('w:numFmt'))
+                    if num_fmt is not None:
+                        fmt_val = num_fmt.get(qn('w:val'))
+                        abstract_formats[abstract_id] = fmt_val
+            
+            # Find the first bullet and decimal numId values
+            for num in numbering.findall(qn('w:num')):
+                num_id = num.get(qn('w:numId'))
+                
+                # Get the abstractNumId this num references
+                abstract_num_id_elem = num.find(qn('w:abstractNumId'))
+                if abstract_num_id_elem is not None:
+                    abstract_id = abstract_num_id_elem.get(qn('w:val'))
+                    fmt = abstract_formats.get(abstract_id)
+                    
+                    # Check if this is a bullet or decimal format
+                    if fmt == 'bullet' and bullet_numid is None:
+                        bullet_numid = int(num_id)
+                    elif fmt == 'decimal' and decimal_numid is None:
+                        decimal_numid = int(num_id)
+                    
+                    # Stop if we found both
+                    if bullet_numid is not None and decimal_numid is not None:
+                        break
+        
+        except Exception as e:
+            # If anything goes wrong, return None values
+            # This allows fallback to character-based lists
+            print(f"Warning: Could not determine list numIds: {e}")
+            self._list_numids_cache = (None, None)
+            return self._list_numids_cache
+        
+        # Cache the results
+        self._list_numids_cache = (bullet_numid, decimal_numid)
+        return self._list_numids_cache
+    
     def add_list(self, items: List[str], numbered: bool = False) -> 'DocumentBuilder':
         """Add bulleted or numbered list.
         
         Creates real Word lists with proper numPr elements for correct
-        markdown conversion. Uses numId=1 for bullets, numId=2 for numbered lists.
+        markdown conversion. Dynamically looks up numId values from the
+        document's numbering.xml to ensure correct list formatting even
+        after python-docx reorganizes the numbering definitions.
+        
+        Falls back to character-based lists if numbering definitions
+        are not found.
         
         Args:
             items: List of item texts
@@ -192,11 +279,24 @@ class DocumentBuilder:
         from docx.oxml import OxmlElement
         from docx.oxml.ns import qn
         
-        # numId values from our template's numbering.xml:
-        # numId=1 → bullets (abstractNumId=0, format=bullet)
-        # numId=2 → numbered (abstractNumId=1, format=decimal)
-        num_id = 2 if numbered else 1
+        # Dynamically look up numId values from numbering.xml
+        bullet_numid, decimal_numid = self._get_list_numids()
         
+        # Determine which numId to use
+        if numbered:
+            num_id = decimal_numid
+            fallback_char = '1.'
+        else:
+            num_id = bullet_numid
+            fallback_char = '•'
+        
+        # If no numbering definitions exist, fall back to character-based lists
+        if num_id is None:
+            for item in items:
+                self._doc.add_paragraph(f"{fallback_char} {item}")
+            return self
+        
+        # Create real Word list items with numPr elements
         for item in items:
             # Add paragraph
             para = self._doc.add_paragraph(item)

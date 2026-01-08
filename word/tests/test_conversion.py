@@ -21,7 +21,7 @@ from pathlib import Path
 # Add parent directory to path to import modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from conversion import (
+from scripts.conversion import (
     docx_to_markdown,
     markdown_to_docx,
     docx_to_pdf,
@@ -31,7 +31,7 @@ from conversion import (
     is_pandoc_available,
 )
 
-from simple import DocumentBuilder
+from scripts.simple import DocumentBuilder
 
 
 @pytest.fixture

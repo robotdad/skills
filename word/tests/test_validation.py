@@ -10,7 +10,7 @@ from pathlib import Path
 # Add parent directory to path to import docx_skill
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from validation import (
+from scripts.validation import (
     ValidationResult, ValidationLevel, ValidationIssue,
     validate_docx, validate_styles, validate_structure, validate_content
 )
