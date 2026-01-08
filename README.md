@@ -9,6 +9,11 @@ HTTP client for API testing, validation, and debugging. Use for testing REST/Gra
 
 **Use when:** Backend API work, HTTP requests, API validation
 
+### image-search
+Find and download images from Wikipedia, Archive.org, and the web using search-first, never-guess approach. Specializes in reliable sources with proven download methods, MediaWiki API expertise for Wikipedia images, and batch download support with progress reporting. Includes production-ready scripts for batch downloading and quality verification.
+
+**Use when:** Finding images for presentations, documents, websites, research material, downloading movie posters, historical images, or public domain content
+
 ### image-vision
 Analyze images using LLM vision APIs (Anthropic Claude, OpenAI GPT-4, Google Gemini, Azure OpenAI). Understand image content, describe visual elements, answer questions about images, compare images, and extract text (OCR).
 
