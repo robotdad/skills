@@ -186,16 +186,27 @@ class DocumentBuilder:
             ...     "Step 3"
             ... ], numbered=True)
         """
-        # Try to use built-in list styles, fall back to manual formatting
+        # Check if list style exists BEFORE attempting to use it
+        # (python-docx adds paragraph before checking style, causing duplicates)
         style = 'List Number' if numbered else 'List Bullet'
+        style_exists = False
         
-        for item in items:
-            try:
+        try:
+            _ = self._doc.document.styles[style]
+            style_exists = True
+        except KeyError:
+            style_exists = False
+        
+        # Now add list items using the appropriate method
+        if style_exists:
+            # Use built-in list style
+            for item in items:
                 self._doc.add_paragraph(item, style=style)
-            except KeyError:
-                # Style doesn't exist, add as regular paragraph with bullet/number prefix
+        else:
+            # Fall back to manual formatting with bullet/number characters
+            for item in items:
                 if numbered:
-                    # Use simple numbering for now
+                    # Use simple numbering
                     para = self._doc.add_paragraph(f"{items.index(item) + 1}. {item}")
                 else:
                     # Use bullet character

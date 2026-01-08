@@ -1,7 +1,7 @@
 ---
 name: word
-description: "Microsoft Word document manipulation with safety-first design. Use when tasks require: (1) Creating formatted Word documents programmatically, (2) Validating DOCX files, (3) Safe document operations with automatic cleanup, (4) Transaction-based editing with rollback. Provides three API levels: Simple (DocumentBuilder), Advanced (custom styles/sections), and OOXML (raw XML manipulation)."
-version: 0.1.0
+description: "Microsoft Word document manipulation with safety-first design. Use when tasks require: (1) Creating formatted Word documents programmatically, (2) Converting DOCX to Markdown for LLM workflows, (3) Validating DOCX files, (4) Safe document operations with automatic cleanup, (5) Transaction-based editing with rollback. Provides three API levels: Simple (DocumentBuilder), Advanced (custom styles/sections), and OOXML (raw XML manipulation). Includes markitdown integration for zero-dependency DOCX→Markdown conversion."
+version: 0.3.0
 license: MIT
 ---
 
@@ -11,7 +11,7 @@ license: MIT
 
 A safety-first Word document manipulation skill with three progressive API levels. Built following the modular design philosophy with automatic temp management, validation, and transactional operations.
 
-**Current Status:** Phase 1 & 2 Complete (Core Infrastructure + High-Level APIs)
+**Current Status:** Phase 1, 2 & 3 Complete (Core Infrastructure + High-Level APIs + Format Conversion)
 
 ## Workflow Decision Tree
 
@@ -29,6 +29,12 @@ A safety-first Word document manipulation skill with three progressive API level
 
 ### Need safe temp file operations
 → Use TempFileManager - See "Safety Mechanisms" section
+
+### Converting DOCX to Markdown for LLM consumption
+→ Use conversion functions - See "Format Conversion" section
+
+### Extracting plain text from DOCX
+→ Use extract_text - See "Format Conversion" section
 
 ## One-Time Setup
 
@@ -316,6 +322,69 @@ print(rec.api_level)      # "advanced"
 print(rec.reasoning)      # Why this API was recommended
 print(rec.example_code)   # Working code example
 print(rec.alternatives)   # Other options to consider
+```
+
+## Phase 3 Features (Available Now)
+
+### Format Conversion
+
+Convert DOCX documents to Markdown or extract plain text for LLM workflows, analysis, or processing.
+
+**DOCX to Markdown** - Using markitdown (zero system dependencies)
+
+```python
+from word import docx_to_markdown, is_markitdown_available
+
+# Check if markitdown is installed
+if not is_markitdown_available():
+    print("Install with: pip install markitdown")
+    # Or: pip install 'markitdown[all]' for full features
+
+# Convert DOCX to Markdown file
+markdown = docx_to_markdown("contract.docx", "contract.md")
+print(f"Converted {len(markdown)} characters")
+
+# Convert to string only (no file output)
+markdown_text = docx_to_markdown("report.docx")
+
+# Use in LLM workflow
+markdown = docx_to_markdown("document.docx")
+# Pass markdown to your LLM for analysis, summarization, etc.
+```
+
+**Extract Plain Text** - Using python-docx (no additional dependencies)
+
+```python
+from word import extract_text
+
+# Extract all text content (no formatting)
+text = extract_text("document.docx")
+word_count = len(text.split())
+print(f"Document has {word_count} words")
+
+# Search for keywords
+text = extract_text("report.docx")
+if "conclusion" in text.lower():
+    print("Document contains conclusion section")
+
+# Extract for text analysis
+text = extract_text("article.docx")
+# Perform sentiment analysis, keyword extraction, etc.
+```
+
+**Why markitdown?**
+- **Zero system dependencies** - Just `pip install markitdown`, no pandoc/LibreOffice required
+- **LLM-optimized** - Designed specifically for AI/RAG workflows
+- **Structure preservation** - Maintains document hierarchy perfectly for LLM consumption
+- **Microsoft-backed** - Official Microsoft library for document conversion
+
+**Installation:**
+```bash
+# Basic installation
+pip install markitdown
+
+# Full features (recommended)
+pip install 'markitdown[all]'
 ```
 
 ## Error Handling

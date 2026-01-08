@@ -29,9 +29,8 @@ High-Level APIs (Phase 2 - Available):
     - Advanced API (AdvancedDocument, StyleManager, etc.) - For fine-grained control
     - Router (API recommendation engine) - Guides you to the right API
 
-Coming Soon (Phase 3):
-    - Conversion utilities (DOCX to/from other formats)
-    - Batch processing utilities
+Phase 3 (Available):
+    - Conversion utilities (DOCX → Markdown, text extraction)
 
 Example Usage:
     >>> # Simple API - Quick document creation
@@ -58,8 +57,14 @@ Example Usage:
     >>> rec = recommend_api("Create document with custom styles")
     >>> print(rec.api_level)  # "advanced"
     >>> print(rec.example_code)
+    >>> 
+    >>> # Conversion - DOCX to Markdown for LLMs
+    >>> from docx_skill.conversion import docx_to_markdown
+    >>> 
+    >>> markdown = docx_to_markdown("contract.docx", "contract.md")
+    >>> # Now use markdown in your LLM workflow
 
-Version: 0.2.0 (Phase 1 + Phase 2)
+Version: 0.3.0
 """
 
 # Phase 1: Core Infrastructure
@@ -110,6 +115,13 @@ from .router import (
     Recommendation,
 )
 
+# Phase 3: Conversion Utilities
+from .conversion import (
+    docx_to_markdown,
+    extract_text,
+    is_markitdown_available,
+)
+
 # Public API exports
 __all__ = [
     # Safety
@@ -151,8 +163,13 @@ __all__ = [
     'should_use_advanced_api',
     'should_use_ooxml_api',
     'Recommendation',
+    
+    # Conversion
+    'docx_to_markdown',
+    'extract_text',
+    'is_markitdown_available',
 ]
 
-__version__ = '0.2.0'
+__version__ = '0.3.0'
 __author__ = 'Amplifier AI'
 __license__ = 'MIT'

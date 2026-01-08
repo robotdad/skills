@@ -109,7 +109,15 @@ class StyleManager:
             >>> doc.add_paragraph("Important!", style="Highlight")
         """
         styles = self._document.styles
-        style = styles.add_style(name, WD_STYLE_TYPE.PARAGRAPH)
+        
+        # Check if style already exists
+        try:
+            existing_style = styles[name]
+            # Style exists, modify it instead of adding
+            style = existing_style
+        except KeyError:
+            # Style doesn't exist, create it
+            style = styles.add_style(name, WD_STYLE_TYPE.PARAGRAPH)
         
         # Set font properties
         font = style.font

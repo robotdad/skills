@@ -10,6 +10,11 @@ lxml>=4.9.0
 # Image handling (for Phase 2)
 Pillow>=10.0.0
 
+# Phase 3: Format Conversion
+# markitdown - DOCX to Markdown (optimized for LLM consumption)
+# [all] includes all format converters (docx, xlsx, pptx, pdf, etc.)
+markitdown[all]>=0.1.4
+
 # Optional: Development dependencies (uncomment for development)
 # pytest>=7.4.0
 # pytest-cov>=4.1.0
