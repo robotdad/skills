@@ -163,6 +163,9 @@ class DocumentBuilder:
     def add_list(self, items: List[str], numbered: bool = False) -> 'DocumentBuilder':
         """Add bulleted or numbered list.
         
+        Creates real Word lists with proper numPr elements for correct
+        markdown conversion. Uses numId=1 for bullets, numId=2 for numbered lists.
+        
         Args:
             items: List of item texts
             numbered: If True, create numbered list; otherwise bulleted
@@ -186,31 +189,34 @@ class DocumentBuilder:
             ...     "Step 3"
             ... ], numbered=True)
         """
-        # Check if list style exists BEFORE attempting to use it
-        # (python-docx adds paragraph before checking style, causing duplicates)
-        style = 'List Number' if numbered else 'List Bullet'
-        style_exists = False
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
         
-        try:
-            _ = self._doc.document.styles[style]
-            style_exists = True
-        except KeyError:
-            style_exists = False
+        # numId values from our template's numbering.xml:
+        # numId=1 → bullets (abstractNumId=0, format=bullet)
+        # numId=2 → numbered (abstractNumId=1, format=decimal)
+        num_id = 2 if numbered else 1
         
-        # Now add list items using the appropriate method
-        if style_exists:
-            # Use built-in list style
-            for item in items:
-                self._doc.add_paragraph(item, style=style)
-        else:
-            # Fall back to manual formatting with bullet/number characters
-            for item in items:
-                if numbered:
-                    # Use simple numbering
-                    para = self._doc.add_paragraph(f"{items.index(item) + 1}. {item}")
-                else:
-                    # Use bullet character
-                    para = self._doc.add_paragraph(f"• {item}")
+        for item in items:
+            # Add paragraph
+            para = self._doc.add_paragraph(item)
+            
+            # Add numPr element to make it a real Word list item
+            pPr = para._element.get_or_add_pPr()
+            
+            numPr = OxmlElement('w:numPr')
+            
+            # ilvl = indent level (0 for first level)
+            ilvl = OxmlElement('w:ilvl')
+            ilvl.set(qn('w:val'), '0')
+            numPr.append(ilvl)
+            
+            # numId = numbering definition reference
+            numId_elem = OxmlElement('w:numId')
+            numId_elem.set(qn('w:val'), str(num_id))
+            numPr.append(numId_elem)
+            
+            pPr.append(numPr)
         
         return self
     
