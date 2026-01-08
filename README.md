@@ -19,6 +19,11 @@ Browser automation for validation, testing, scraping, and web interaction. Navig
 
 **Use when:** Browser automation, web scraping, UI testing, web interaction
 
+### word
+Microsoft Word document manipulation with safety-first design. Create formatted Word documents programmatically, validate DOCX files, safe document operations with automatic cleanup, and convert DOCX to Markdown for LLM workflows. Provides three API levels: Simple (DocumentBuilder), Advanced (custom styles/sections), and OOXML (raw XML manipulation).
+
+**Use when:** Creating Word documents programmatically, converting DOCX to Markdown for AI/RAG pipelines, document validation, structured document generation
+
 ## License
 
 MIT License - See LICENSE file for details
