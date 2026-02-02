@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 1280px;
+  height: 720px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-family: Arial, sans-serif;
+  color: #1e293b;
+}
+
+.slide {
+  width: 100%;
+  height: 100%;
+  padding: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  border-radius: 32px;
+  padding: 80px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  max-width: 1000px;
+}
+
+h1 {
+  font-size: 72px;
+  color: white;
+  font-family: Verdana, sans-serif;
+  margin-bottom: 40px;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+h2 {
+  font-size: 48px;
+  color: white;
+  font-family: Verdana, sans-serif;
+  margin-bottom: 30px;
+}
+
+ul {
+  list-style: none;
+  font-size: 28px;
+  color: white;
+  line-height: 2;
+}
+
+li {
+  padding-left: 40px;
+  position: relative;
+}
+
+li:before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: #ec4899;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.accent {
+  color: #ec4899;
+  font-weight: bold;
+}
+</style>
+</head>
+<body>
+
+<div class="slide">
+  <div class="glass-card">
+    <h2>Key Features</h2>
+    <ul>
+      <li>Lightning fast performance</li>
+      <li>Beautiful user interface</li>
+      <li>Rock-solid reliability</li>
+      <li>Enterprise-grade security</li>
+      <li>24/7 customer support</li>
+    </ul>
+  </div>
+</div>
+
+</body>
+</html>

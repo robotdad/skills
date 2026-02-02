@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 1280px;
+  height: 720px;
+  background: #0a0e27;
+  font-family: Arial, sans-serif;
+  color: #e4e7ff;
+}
+
+.slide {
+  width: 100%;
+  height: 100%;
+  padding: 80px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Slide 1: Title */
+.slide.title {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.slide.title .label {
+  font-size: 14px;
+  color: #f093fb;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  margin-bottom: 20px;
+  font-weight: bold;
+}
+
+.slide.title h1 {
+  font-size: 96px;
+  color: white;
+  font-family: Impact, Arial Black, sans-serif;
+  line-height: 1.1;
+  text-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+/* Slide 2: Content */
+.slide.content {
+  background: #0a0e27;
+}
+
+.slide.content h2 {
+  font-size: 56px;
+  color: #667eea;
+  font-family: Impact, Arial Black, sans-serif;
+  margin-bottom: 60px;
+  border-bottom: 4px solid #f093fb;
+  padding-bottom: 20px;
+}
+
+.slide.content ul {
+  list-style: none;
+  font-size: 28px;
+  line-height: 2;
+}
+
+.slide.content li {
+  padding-left: 40px;
+  position: relative;
+}
+
+.slide.content li:before {
+  content: "▸";
+  position: absolute;
+  left: 0;
+  color: #f093fb;
+  font-size: 32px;
+}
+
+/* Slide 3: Stats */
+.slide.stats {
+  background: #1a1f3a;
+  justify-content: center;
+}
+
+.stats-grid {
+  display: flex;
+  justify-content: space-around;
+  gap: 60px;
+}
+
+.stat {
+  text-align: center;
+  flex: 1;
+}
+
+.stat-number {
+  font-size: 96px;
+  color: #f093fb;
+  font-family: Impact, Arial Black, sans-serif;
+  text-shadow: 0 0 20px rgba(240, 147, 251, 0.5);
+  line-height: 1;
+  margin-bottom: 20px;
+}
+
+.stat-label {
+  font-size: 24px;
+  color: #667eea;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+/* Slide 4: Two Column */
+.slide.two-column {
+  background: #0a0e27;
+}
+
+.slide.two-column h2 {
+  font-size: 48px;
+  color: #667eea;
+  font-family: Impact, Arial Black, sans-serif;
+  margin-bottom: 40px;
+}
+
+.columns {
+  display: flex;
+  gap: 60px;
+  flex: 1;
+}
+
+.column {
+  flex: 1;
+  background: #1a1f3a;
+  padding: 40px;
+  border-radius: 16px;
+  border: 2px solid #667eea;
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2);
+}
+
+.column h3 {
+  font-size: 32px;
+  color: #f093fb;
+  margin-bottom: 20px;
+  font-family: Impact, Arial Black, sans-serif;
+}
+
+.column p {
+  font-size: 20px;
+  line-height: 1.6;
+  color: #e4e7ff;
+}
+</style>
+</head>
+<body>
+
+<!-- Slide 1: Title -->
+<div class="slide title">
+  <div class="label">PRODUCT LAUNCH 2025</div>
+  <h1>THE FUTURE<br>IS HERE</h1>
+</div>
+
+</body>
+</html>
