@@ -127,10 +127,8 @@ class HTMLToPPTXConverter:
             )
             current_top += 0.5
 
-        # Headline (h1 or .headline)
-        headline = slide_div.find(["h1", "h2"], class_="headline") or slide_div.find(
-            "h1"
-        )
+        # Headline - try Amplifier Stories classes first, then any h1/h2
+        headline = slide_div.find(["h1", "h2"], class_="headline") or slide_div.find("h1") or slide_div.find("h2")
         if headline:
             text = self.get_text(headline)
             has_gradient = "big-text" in headline.get("class", [])
@@ -211,10 +209,11 @@ class HTMLToPPTXConverter:
             self._add_tenets(slide, tenets, current_top)
             current_top += len(tenets) * 0.5 + 0.5
 
-        # Stats grid
-        stat_grid = slide_div.find(class_="stat-grid")
+        # Stats grid (try both Amplifier naming and generic)
+        stat_grid = slide_div.find(class_="stat-grid") or slide_div.find(class_="stats-grid")
         if stat_grid:
             self._add_stats(slide, stat_grid, current_top)
+            current_top += 2.5
 
         # Tables
         tables = slide_div.find_all("table", class_="data-table")
@@ -222,12 +221,16 @@ class HTMLToPPTXConverter:
             self._add_table(slide, table, current_top)
             current_top += 2.5
 
-        # Feature lists
+        # Feature lists (Amplifier Stories format)
         feature_lists = slide_div.find_all(class_="feature-list")
         for fl in feature_lists:
             if not fl.find_parent(class_="versus"):
                 self._add_feature_list(slide, fl, current_top)
                 current_top += 1.5
+
+        # Generic content fallback - extract plain HTML elements not already handled
+        # This catches custom HTML that doesn't use Amplifier Stories classes
+        self._add_generic_content(slide, slide_div, current_top, is_centered)
 
         # Small text at bottom
         small_text = slide_div.find(class_="small-text")
@@ -520,6 +523,127 @@ class HTMLToPPTXConverter:
             self.add_text_box(
                 slide, text, 0.8, top + i * 0.4, 8.4, 0.4, font_size=16, color=color
             )
+
+    def _add_generic_content(self, slide, slide_div: Tag, top: float, is_centered: bool):
+        """
+        Extract generic HTML content not using Amplifier Stories classes.
+        This is a fallback for custom HTML that uses plain elements.
+        """
+        current_top = top
+        
+        # Track what we've already processed to avoid duplicates
+        processed_elements = set()
+        
+        # Add the headline and section label elements we already processed
+        headline = slide_div.find(["h1", "h2"], class_="headline") or slide_div.find("h1") or slide_div.find("h2")
+        if headline:
+            processed_elements.add(id(headline))
+        
+        section_label = slide_div.find(class_="section-label")
+        if section_label:
+            processed_elements.add(id(section_label))
+        
+        # Find all potentially relevant elements
+        for element in slide_div.find_all(["h3", "ul", "div"]):
+            # Skip if already processed
+            if id(element) in processed_elements:
+                continue
+            
+            # Skip if inside already-processed containers
+            if (element.find_parent(class_=["card", "stat-grid", "stats-grid", "tenet", 
+                                           "feature-list", "data-table", "versus", 
+                                           "small-text", "image-container"])):
+                continue
+            
+            # Handle h3 elements
+            if element.name == "h3":
+                text = self.get_text(element)
+                if text:
+                    self.add_text_box(
+                        slide,
+                        text,
+                        0.8,
+                        current_top,
+                        8.4,
+                        0.5,
+                        font_size=28,
+                        bold=True,
+                        color=self.accent,
+                        align=PP_ALIGN.CENTER if is_centered else PP_ALIGN.LEFT,
+                    )
+                    current_top += 0.6
+                    processed_elements.add(id(element))
+            
+            # Handle plain ul elements (not .feature-list)
+            elif element.name == "ul" and "feature-list" not in element.get("class", []):
+                items = element.find_all("li", recursive=False)
+                if items:
+                    for i, item in enumerate(items):
+                        text = self.get_text(item)
+                        if text:
+                            # Use bullet points for generic lists
+                            self.add_text_box(
+                                slide,
+                                "• " + text,
+                                0.8,
+                                current_top,
+                                8.4,
+                                0.3,
+                                font_size=18,
+                                color=self.white,
+                            )
+                            current_top += 0.35
+                    processed_elements.add(id(element))
+            
+            # Handle divs with direct text content (like .flop-title, .flop-detail)
+            elif element.name == "div":
+                # Only process divs with classes that might contain content
+                classes = element.get("class", [])
+                # Skip structural containers
+                if any(c in ["slide", "slides-container", "thirds", "halves", "fourths"] for c in classes):
+                    continue
+                
+                # Get direct text (not from nested divs)
+                direct_text = ""
+                for child in element.children:
+                    if isinstance(child, str):
+                        direct_text += child.strip()
+                
+                if direct_text or (not list(element.find_all(["div", "ul", "table"])) and element.get_text(strip=True)):
+                    text = self.get_text(element)
+                    if text and len(text) > 3:  # Skip empty or trivial divs
+                        # Check if it looks like a title (has title-like classes or is short and bold)
+                        is_title = any(word in " ".join(classes).lower() for word in ["title", "heading", "header"])
+                        
+                        if is_title or len(text) < 60:
+                            # Treat as a subheading
+                            self.add_text_box(
+                                slide,
+                                text,
+                                0.8,
+                                current_top,
+                                8.4,
+                                0.4,
+                                font_size=24,
+                                bold=True,
+                                color=self.accent,
+                            )
+                            current_top += 0.5
+                        else:
+                            # Treat as regular content
+                            self.add_text_box(
+                                slide,
+                                text,
+                                0.8,
+                                current_top,
+                                8.4,
+                                0.3,
+                                font_size=16,
+                                color=self.gray_70,
+                            )
+                            current_top += 0.35
+                        
+                        processed_elements.add(id(element))
 
     def convert(self) -> Presentation:
         """Convert HTML to PowerPoint presentation."""

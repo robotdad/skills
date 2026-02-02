@@ -76,7 +76,105 @@ class PresentationBuilder(ABC):
         pass
 
     def build(self) -> str:
-        """Build complete HTML presentation."""
+        """Build complete HTML presentation with navigation."""
+        # Add data-slide attributes and active class to first slide
+        slides_with_attrs = []
+        for i, slide_html in enumerate(self.slides):
+            slide_num = i + 1
+            active_class = " active" if i == 0 else ""
+            # Insert data-slide and active class into opening div tag
+            modified = slide_html.replace(
+                '<div class="slide',
+                f'<div class="slide{active_class}" data-slide="{slide_num}',
+            )
+            slides_with_attrs.append(modified)
+
+        navigation_html = f"""
+    <div class="nav-dots"></div>
+    <div class="slide-counter"><span id="current-slide">1</span> / <span id="total-slides">{len(self.slides)}</span></div>
+    
+    <div class="clickable-area left" onclick="previousSlide()"></div>
+    <div class="clickable-area right" onclick="nextSlide()"></div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = {len(self.slides)};
+        
+        // Create navigation dots
+        const navDotsContainer = document.querySelector('.nav-dots');
+        for (let i = 1; i <= totalSlides; i++) {{
+            const dot = document.createElement('div');
+            dot.className = 'nav-dot' + (i === 1 ? ' active' : '');
+            dot.onclick = () => goToSlide(i);
+            navDotsContainer.appendChild(dot);
+        }}
+        
+        function updateSlide() {{
+            document.querySelectorAll('.slide').forEach(slide => {{
+                slide.classList.remove('active');
+            }});
+            
+            document.querySelectorAll('.nav-dot').forEach((dot, index) => {{
+                dot.classList.toggle('active', index + 1 === currentSlide);
+            }});
+            
+            const activeSlide = document.querySelector(`[data-slide="${{currentSlide}}"]`);
+            if (activeSlide) {{
+                activeSlide.classList.add('active');
+            }}
+            
+            document.getElementById('current-slide').textContent = currentSlide;
+        }}
+        
+        function nextSlide() {{
+            if (currentSlide < totalSlides) {{
+                currentSlide++;
+                updateSlide();
+            }}
+        }}
+        
+        function previousSlide() {{
+            if (currentSlide > 1) {{
+                currentSlide--;
+                updateSlide();
+            }}
+        }}
+        
+        function goToSlide(slideNumber) {{
+            currentSlide = slideNumber;
+            updateSlide();
+        }}
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {{
+            if (e.key === 'ArrowRight' || e.key === ' ') {{
+                e.preventDefault();
+                nextSlide();
+            }} else if (e.key === 'ArrowLeft') {{
+                e.preventDefault();
+                previousSlide();
+            }}
+        }});
+        
+        // Swipe support for mobile
+        let touchStartX = 0;
+        let touchEndX = 0;
+        
+        document.addEventListener('touchstart', e => {{
+            touchStartX = e.changedTouches[0].screenX;
+        }});
+        
+        document.addEventListener('touchend', e => {{
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        }});
+        
+        function handleSwipe() {{
+            if (touchEndX < touchStartX - 50) nextSlide();
+            if (touchEndX > touchStartX + 50) previousSlide();
+        }}
+    </script>"""
+
         html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -87,7 +185,8 @@ class PresentationBuilder(ABC):
 </style>
 </head>
 <body style="{self.get_body_style()}">
-{chr(10).join(self.slides)}
+{chr(10).join(slides_with_attrs)}
+{navigation_html}
 </body>
 </html>"""
         return html
@@ -100,13 +199,70 @@ class DarkModeTech(PresentationBuilder):
         return """* { margin: 0; padding: 0; box-sizing: border-box; }
 
 .slide {
-  width: 1280px;
-  height: 720px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  min-height: 100vh;
   padding: 80px;
   display: flex;
   flex-direction: column;
-  page-break-after: always;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.5s ease, visibility 0.5s ease;
 }
+
+.slide.active {
+  opacity: 1;
+  visibility: visible;
+  z-index: 1;
+}
+
+.nav-dots {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  z-index: 100;
+}
+
+.nav-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.nav-dot.active {
+  background: #667eea;
+  width: 24px;
+  border-radius: 4px;
+}
+
+.slide-counter {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.5);
+  z-index: 100;
+}
+
+.clickable-area {
+  position: fixed;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  cursor: pointer;
+  z-index: 50;
+}
+
+.clickable-area.left { left: 0; }
+.clickable-area.right { right: 0; }
 
 .slide.title {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
