@@ -1,6 +1,6 @@
 ---
 name: web-app-setup
-description: Use when setting up a new web app on a Linux host — provisions shared infra gaps and per-app config. Always run host-infra-discovery first and have its summary table ready before starting.
+description: Use when setting up a new web app on a Linux or macOS host — provisions shared infra gaps and per-app config. Always run host-infra-discovery first and have its summary table ready before starting. Covers Tailscale-based deployments fully; other network setups get scoped notes only.
 ---
 
 # Web App Setup
@@ -9,22 +9,38 @@ description: Use when setting up a new web app on a Linux host — provisions sh
 
 Takes the summary table from `host-infra-discovery` and does the work. Two phases: fix shared infra gaps (same for every app, idempotent), then provision per-app config (always done fresh).
 
+**Scope:** This skill fully specifies the Tailscale path. For other network setups, Phase 1 cert steps do not apply — see Non-Tailscale Notes at the end.
+
 Prefix every command with `ssh <hostname>` for remote hosts.
+
+---
+
+## Platform Detection (Run Once, Reference Throughout)
+
+```bash
+OS=$(uname -s)   # "Linux" or "Darwin" — referenced in steps below
+echo $OS
+```
 
 ---
 
 ## Phase 1 — Shared Infra (Idempotent, Driven by Discovery Output)
 
-Work through each row in the discovery table. Skip any row already showing the target state.
+Work through each gap row in the discovery table. Skip any row already at target state.
 
 ### Caddy not installed
 
 ```bash
+# Linux
 apt-get update -qq && apt-get install -y caddy
 systemctl enable --now caddy
+
+# macOS
+brew install caddy
+brew services start caddy
 ```
 
-### Caddy conf.d not wired
+### Caddy conf.d not wired *(both platforms)*
 
 ```bash
 mkdir -p /etc/caddy/conf.d
@@ -32,7 +48,7 @@ grep -q 'import.*conf.d' /etc/caddy/Caddyfile || \
     echo 'import /etc/caddy/conf.d/*.caddy' | tee -a /etc/caddy/Caddyfile
 ```
 
-### TLS certs absent (requires paid Tailscale plan)
+### TLS certs absent *(Tailscale only — requires paid plan)*
 
 ```bash
 FQDN=$(tailscale status --json | python3 -c \
@@ -46,49 +62,39 @@ chown root:caddy /etc/ssl/tailscale/$FQDN.key
 chmod 640        /etc/ssl/tailscale/$FQDN.key
 ```
 
-On failure (free plan): set `HTTPS=false` and use port 80 with no `tls` directive in the Caddy snippet (Phase 2). Tailscale WireGuard still encrypts the connection.
+On failure (free plan): set `HTTPS=false`, use HTTP Caddy snippet (no `tls` directive).
 
-### Cert renewal timer absent
+### Cert renewal timer absent *(Tailscale + Linux only)*
 
 ```bash
-# Write the two unit files
-cat > /etc/systemd/system/tailscale-cert-renew.service <<'EOF'
+cat > /etc/systemd/system/tailscale-cert-renew.service <<EOF
 [Unit]
 Description=Renew Tailscale TLS certificates
-
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/tailscale cert \
-    --cert-file /etc/ssl/tailscale/FQDN.crt \
-    --key-file  /etc/ssl/tailscale/FQDN.key \
-    FQDN
-ExecStartPost=/usr/bin/chown root:caddy /etc/ssl/tailscale/FQDN.key
-ExecStartPost=/usr/bin/chmod 640 /etc/ssl/tailscale/FQDN.key
+ExecStart=/usr/bin/tailscale cert --cert-file /etc/ssl/tailscale/$FQDN.crt --key-file /etc/ssl/tailscale/$FQDN.key $FQDN
+ExecStartPost=/usr/bin/chown root:caddy /etc/ssl/tailscale/$FQDN.key
+ExecStartPost=/usr/bin/chmod 640 /etc/ssl/tailscale/$FQDN.key
 ExecStartPost=/usr/bin/systemctl reload caddy
 EOF
-
-# Substitute actual FQDN
-sed -i "s/FQDN/$FQDN/g" /etc/systemd/system/tailscale-cert-renew.service
-
-cat > /etc/systemd/system/tailscale-cert-renew.timer <<'EOF'
+cat > /etc/systemd/system/tailscale-cert-renew.timer <<EOF
 [Unit]
 Description=Weekly Tailscale cert renewal
-
 [Timer]
 OnCalendar=weekly
 Persistent=true
-
 [Install]
 WantedBy=timers.target
 EOF
-
-systemctl daemon-reload
-systemctl enable --now tailscale-cert-renew.timer
+systemctl daemon-reload && systemctl enable --now tailscale-cert-renew.timer
 ```
 
-### Service user not in shadow group
+*macOS:* `tailscale cert` can be run via a `launchd` calendar plist if desired, but manual renewal on demand is also reasonable given certs are valid 90 days.
+
+### Service user not in shadow group *(Linux only)*
 
 ```bash
+# Linux only — not applicable on macOS (no /etc/shadow; auth uses Tailscale identity instead)
 usermod -aG shadow <SERVICE_USER>
 ```
 
@@ -101,23 +107,26 @@ Replace `<APPNAME>` with a short lowercase slug (e.g. `filebrowser`, `myapp`).
 ### 2a. Generate secret key
 
 ```bash
+# Linux
 INSTALL_DIR="/opt/<APPNAME>"
-mkdir -p "$INSTALL_DIR"
+SECRET_PATH="$INSTALL_DIR/.secret_key"
 
-SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
-echo "$SECRET" > "$INSTALL_DIR/.secret_key"
-chmod 600 "$INSTALL_DIR/.secret_key"
+# macOS
+INSTALL_DIR="$HOME/.config/<APPNAME>"
+SECRET_PATH="$INSTALL_DIR/secret_key"
+
+mkdir -p "$INSTALL_DIR"
+python3 -c "import secrets; print(secrets.token_hex(32))" > "$SECRET_PATH"
+chmod 600 "$SECRET_PATH"
+SECRET=$(cat "$SECRET_PATH")
 ```
 
 ### 2b. Allocate port
 
-Find the next free port not already in `/etc/app-ports.conf` or `ss` output:
-
 ```bash
 PORT=$(python3 -c "
-import socket, configparser, sys
+import socket, configparser
 
-# Read already-registered ports
 cfg = configparser.ConfigParser()
 cfg.read('/etc/app-ports.conf')
 used = {int(cfg[s]['internal']) for s in cfg.sections() if 'internal' in cfg[s]}
@@ -126,23 +135,17 @@ for p in range(8444, 8999):
     if p in used:
         continue
     try:
-        s = socket.socket()
-        s.bind(('127.0.0.1', p))
-        s.close()
-        print(p)
-        break
+        s = socket.socket(); s.bind(('127.0.0.1', p)); s.close(); print(p); break
     except OSError:
         pass
 ")
 
-# Register it
 cat >> /etc/app-ports.conf <<EOF
 
 [<APPNAME>]
 internal=$PORT
-external=$PORT   # change to 443 if this is the primary app
+external=$PORT
 EOF
-
 echo "Allocated port: $PORT"
 ```
 
@@ -155,25 +158,27 @@ FQDN=$(tailscale status --json | python3 -c \
 # HTTPS (certs present)
 cat > /etc/caddy/conf.d/<APPNAME>.caddy <<EOF
 $FQDN:$PORT {
-    tls /etc/ssl/tailscale/$FQDN.crt \
-        /etc/ssl/tailscale/$FQDN.key
+    tls /etc/ssl/tailscale/$FQDN.crt /etc/ssl/tailscale/$FQDN.key
     reverse_proxy localhost:$PORT
 }
 EOF
 
-# HTTP fallback (no certs — replace the block above with this instead)
-# cat > /etc/caddy/conf.d/<APPNAME>.caddy <<EOF
-# :80 {
+# HTTP fallback — replace block above with this if no certs
+# $FQDN:$PORT {
 #     reverse_proxy localhost:$PORT
 # }
-# EOF
 
-systemctl reload caddy
+systemctl reload caddy   # Linux
+# brew services reload caddy   # macOS
 ```
 
-### 2d. Write systemd service unit
+### 2d. Write service unit
 
-Fill in `<APPNAME>`, `<SERVICE_USER>`, `<INSTALL_DIR>`, and `<START_COMMAND>`:
+Fill in `<APPNAME>`, `<SERVICE_USER>`, `<INSTALL_DIR>`, `<START_COMMAND>`, `<PORT>`, `<SECRET>`.  
+`SECURE_COOKIES` is `true` when TLS certs are present, `false` otherwise.  
+Cookie name in app code **must** be `<APPNAME>_session`.
+
+**Linux — systemd:**
 
 ```ini
 # /etc/systemd/system/<APPNAME>.service
@@ -196,31 +201,103 @@ Environment=<APPNAME_UPPER>_SECURE_COOKIES=<true|false>
 WantedBy=multi-user.target
 ```
 
-`<APPNAME_UPPER>_SECURE_COOKIES` is `true` when TLS certs are present, `false` otherwise.  
-Cookie name in the app's code must be `<APPNAME>_session` — not `session`.
+```bash
+systemctl daemon-reload && systemctl enable --now <APPNAME>
+```
+
+**macOS — launchd:**
+
+```xml
+<!-- ~/Library/LaunchAgents/com.user.<APPNAME>.plist -->
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+    <key>Label</key>
+    <string>com.user.<APPNAME></string>
+    <key>ProgramArguments</key>
+    <array>
+        <string><INSTALL_DIR>/.venv/bin/uvicorn</string>
+        <string><module>:app</string>
+        <string>--host</string><string>127.0.0.1</string>
+        <string>--port</string><string><PORT></string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key><APPNAME_UPPER>_SECRET_KEY</key><string><SECRET></string>
+        <key><APPNAME_UPPER>_SECURE_COOKIES</key><string>true</string>
+    </dict>
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+    <key>StandardOutPath</key><string>/tmp/<APPNAME>.log</string>
+    <key>StandardErrorPath</key><string>/tmp/<APPNAME>.error.log</string>
+</dict></plist>
+```
 
 ```bash
-systemctl daemon-reload
-systemctl enable --now <APPNAME>
+launchctl load ~/Library/LaunchAgents/com.user.<APPNAME>.plist
 ```
+
+### 2e. Auth — Tailscale identity middleware *(preferred over PAM; works on both platforms)*
+
+On Linux, PAM (`python-pam`) is available but the Tailscale identity approach is simpler, cross-platform, and stronger — device-level identity rather than a password. Use PAM only if the app already has it wired and you're not touching auth.
+
+For new apps, use the local Tailscale API in a FastAPI dependency:
+
+```python
+import httpx
+from fastapi import Request, HTTPException
+
+async def require_tailscale_identity(request: Request) -> str:
+    client_ip = request.client.host
+    transport = httpx.AsyncHTTPTransport(
+        uds="/var/run/tailscale/tailscaled.sock"
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        r = await client.get(
+            f"http://local-tailscaled.sock/localapi/v0/whois?addr={client_ip}:0"
+        )
+    if r.status_code != 200:
+        raise HTTPException(status_code=401)
+    node = r.json().get("Node", {})
+    # Optionally: assert node["User"]["LoginName"] == "your@email"
+    return node.get("Name", client_ip)
+```
+
+This replaces the PAM login form. On first visit, Caddy (or any connecting Tailscale device) is already authenticated at the network layer — the whois call just surfaces that identity for the session cookie. Issue the `itsdangerous` cookie on success exactly as the PAM path does.
 
 ---
 
 ## Completion Checklist
 
 ```bash
-# Verify service is running
+# Linux
 systemctl status <APPNAME>
-
-# Verify Caddy loaded the new snippet without errors
 systemctl status caddy
+# macOS
+launchctl list | grep <APPNAME>
+brew services list | grep caddy
+
+# Both platforms
 caddy validate --config /etc/caddy/Caddyfile
-
-# Verify port is bound
+# Linux
 ss -tlnp | grep <PORT>
+# macOS
+netstat -an | grep <PORT>
 
-# Verify HTTPS (if certs present)
 curl -sf https://<FQDN>:<PORT>/ -o /dev/null && echo OK
 ```
 
-All five green → done.
+All checks green → done.
+
+---
+
+## Non-Tailscale Notes
+
+This skill fully specifies the Tailscale path. If your host runs something else, here are things to consider — not step-by-step instructions, as these paths haven't been validated:
+
+**Other mesh VPNs (WireGuard, ZeroTier, Nebula):** Network isolation is present but there's no built-in cert provisioning or identity API. You'll need a cert source — Caddy's automatic ACME works if you have a real domain; `mkcert` is worth looking at for LAN-only setups without a domain. The session cookie model and per-app secrets apply unchanged.
+
+**Cloudflare Tunnel (`cloudflared`):** Cloudflare terminates TLS at their edge — skip the cert generation and renewal steps. Cloudflare Access can handle outer authentication and passes the verified identity in a request header. Caddy is still useful for local port routing but needs no `tls` directive.
+
+**No overlay (LAN or public IP):** Caddy's automatic ACME handles Let's Encrypt if you have a domain pointed at the machine — no manual cert steps needed. For LAN-only without a domain, `mkcert` is worth investigating. Auth carries full weight here since there's no network-layer trust boundary.
