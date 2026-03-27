@@ -268,6 +268,153 @@ This replaces the PAM login form. On first visit, Caddy (or any connecting Tails
 
 ---
 
+## Phase 3 — Frontdoor Integration (When Frontdoor is Deployed)
+
+Check whether frontdoor is deployed before applying this phase:
+
+```bash
+systemctl is-active frontdoor   # "active" → apply Phase 3; anything else → skip
+```
+
+If frontdoor is active, apply the subsections below instead of the per-app auth in section 2e.
+
+---
+
+### 3a. Reserved Ports
+
+Never allocate ports from these ranges — they are claimed by frontdoor and its integrated services:
+
+| Range | Reserved for |
+|-------|-------------|
+| 3000–3010 | Development servers |
+| 4000–4010 | Development servers |
+| 4200–4210 | Angular dev servers |
+| 5000–5010 | Flask / general dev |
+| 5173–5183 | Vite dev servers |
+| 8000–8010 | FastAPI / Django dev |
+| 8080–8090 | Generic HTTP proxies |
+| 8410–8420 | Frontdoor and amplifierd |
+| 8888–8898 | Jupyter notebooks |
+| 9090–9100 | Prometheus / monitoring |
+| Databases | All standard DB ports |
+
+New apps always go in the **8440+** range. Use these commands to find a free port:
+
+```bash
+# Scan the registry for claimed ports
+cat /etc/app-ports.conf 2>/dev/null || echo "NO_REGISTRY"
+
+# Scan live sockets to confirm the port is truly free
+ss -tlnp | awk '/127\.0\.0\.1/{print $4}' | sort   # Linux
+netstat -an | awk '/tcp.*127\.0\.0\.1.*LISTEN/{print $4}' | sort   # macOS
+
+# Start from 8440 and skip anything in either source above
+```
+
+---
+
+### 3b. Caddy Snippet with `forward_auth`
+
+When frontdoor is deployed, replace the basic `reverse_proxy` snippet with one that validates every request through frontdoor's auth endpoint before proxying.
+
+The `forward_auth` block **must** appear before `reverse_proxy` and **must** include `copy_headers X-Authenticated-User` so the downstream app receives the verified identity:
+
+```caddy
+# /etc/caddy/conf.d/<APPNAME>.caddy
+<FQDN>:<PORT> {
+    tls /etc/ssl/tailscale/<FQDN>.crt /etc/ssl/tailscale/<FQDN>.key
+
+    forward_auth localhost:8420 {
+        uri /api/auth/validate
+        copy_headers X-Authenticated-User
+    }
+
+    reverse_proxy localhost:<PORT>
+}
+```
+
+Reload Caddy after writing the snippet:
+
+```bash
+systemctl reload caddy   # Linux
+# brew services reload caddy   # macOS
+```
+
+---
+
+### 3c. Frontdoor Manifest
+
+Each app registers itself with frontdoor by providing a manifest at `deploy/frontdoor.json`. Frontdoor reads this file to display the app in its dashboard.
+
+```json
+{
+  "name": "<App Display Name>",
+  "description": "<One-line description of what the app does>",
+  "icon": "<emoji or icon identifier>"
+}
+```
+
+Install the manifest so frontdoor can discover it:
+
+```bash
+# Create the manifest directory if it doesn't exist
+mkdir -p /opt/frontdoor/manifests
+
+# Copy the manifest — use the app slug as the filename
+cp deploy/frontdoor.json /opt/frontdoor/manifests/<APPNAME>.json
+```
+
+Include this copy step in the app's install/deploy script so the manifest is always current after an update.
+
+---
+
+### 3d. Sign Out Pattern
+
+Because frontdoor sets a **shared authentication cookie** at the domain level, apps must not attempt their own logout. Instead, redirect the user to frontdoor's logout endpoint, which clears the shared cookie for all apps simultaneously.
+
+Use a form POST (not a GET link) to prevent CSRF and accidental prefetch:
+
+```html
+<form method="POST" action="https://<FRONTDOOR_FQDN>/api/auth/logout">
+    <button type="submit">Sign out</button>
+</form>
+```
+
+Or from a backend route:
+
+```python
+from fastapi.responses import RedirectResponse
+
+@app.post("/signout")
+async def signout():
+    return RedirectResponse(
+        url="https://<FRONTDOOR_FQDN>/api/auth/logout",
+        status_code=303
+    )
+```
+
+Do not clear any local session cookie on signout — the shared cookie is what matters, and only frontdoor can clear it.
+
+---
+
+### 3e. No App-Level Auth
+
+When frontdoor is deployed **and** the Caddy snippet includes `forward_auth` (section 3b), **do not implement app-level authentication**. Every request that reaches the app has already been validated by frontdoor.
+
+The app can read the authenticated user's identity from the request header set by `copy_headers`:
+
+```python
+# FastAPI example — no auth check needed, just read the header
+@app.get("/")
+async def index(request: Request):
+    user = request.headers.get("X-Authenticated-User", "unknown")
+    return {"user": user}
+```
+
+Do not add login forms, session cookies, or `require_tailscale_identity` middleware when this pattern is in effect. Frontdoor owns authentication; the app owns its business logic.
+
+---
+
 ## Completion Checklist
 
 ```bash
